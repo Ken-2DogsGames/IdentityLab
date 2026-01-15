@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Altair Identity Basin</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Roboto', sans-serif; }
+        canvas { display: block; width: 100%; height: 100%; } 
+        
+        /* HUD CONTAINER */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* LEFT TITLE HUD */
+        #hud-left {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            text-align: left;
+            text-shadow: 0 0 10px #000;
+        }
+        .app-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 2px;
+            margin-bottom: 2px;
+        }
+        .app-subtitle {
+            font-size: 14px;
+            color: #fff;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        /* CENTER HUD */
+        #hud-top {
+            margin-top: 120px; 
+            text-align: center;
+            text-shadow: 0 0 10px #000;
+        }
+        .big-val { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 2px; }
+        .sub-val { font-size: 14px; color: #aaa; text-transform: uppercase; margin-top: 5px; font-weight: bold; }
+        
+        .energy-val { margin-top: 4px; }
+
+        /* BOTTOM CONTROLS */
+        #controls-bottom {
+            position: absolute; bottom: 30px;
+            background: rgba(5, 10, 15, 0.95);
+            border: 1px solid #333; border-radius: 12px;
+            padding: 20px; width: 600px;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 50px rgba(0,255,255,0.05);
+        }
+
+        .slider-row { display: flex; align-items: center; gap: 15px; margin-bottom: 12px; }
+        .slider-row:last-child { margin-bottom: 0; }
+        label { width: 140px; color: #00e5ff; font-size: 11px; font-weight: bold; letter-spacing: 1px; }
+        input[type=range] { flex: 1; accent-color: #00e5ff; cursor: pointer; }
+        
+        .val-display { width: 30px; color: #fff; font-size: 11px; font-weight: bold; text-align: right; }
+        
+        /* Mobile adjustment */
+        @media (max-width: 650px) {
+            #controls-bottom { width: 90%; bottom: 20px; }
+            .app-title { font-size: 24px; }
+            .big-val { font-size: 24px; }
+        }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div id="hud-left">
+        <div class="app-title">IDENTITY LAB v0.1</div>
+        <div class="app-subtitle">IDENTITY WELLS</div>
+    </div>
+
+    <div id="hud-top">
+        <div id="coh-display" class="big-val">COHERENCE 100%</div>
+        <div id="state-display" class="sub-val" style="color:#0f0">SYSTEM STABLE</div>
+        <div id="energy-display" class="sub-val energy-val" style="color:#0f0">ENERGY: OK</div>
+    </div>
+
+    <div id="controls-bottom">
+        <div class="slider-row">
+            <label>WELL DEPTH</label>
+            <input type="range" id="sl-depth" min="0" max="100" value="50">
+            <span id="val-depth" class="val-display">50</span>
+        </div>
+        <div class="slider-row">
+            <label>GC SPEND</label>
+            <input type="range" id="sl-gc" min="0" max="100" value="50">
+            <span id="val-gc" class="val-display">50</span>
+        </div>
+        <div class="slider-row">
+            <label>ENTROPY (NOISE)</label>
+            <input type="range" id="sl-noise" min="0" max="100" value="20">
+            <span id="val-noise" class="val-display">20</span>
+        </div>
+        <div class="slider-row">
+            <label>ECCENTRICITY</label>
+            <input type="range" id="sl-ecc" min="0" max="80" value="0">
+            <span id="val-ecc" class="val-display">0</span>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- 1. SCENE SETUP ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.FogExp2(0x000000, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 35, 45); 
+    camera.lookAt(0, -5, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 - 0.1; 
+    controls.minDistance = 5;
+    controls.maxDistance = 80;
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- 2. THE BASIN ---
+    const basinGroup = new THREE.Group();
+    scene.add(basinGroup);
+
+    const gridSize = 24; 
+    const range = 25; 
+    const segments = 80; 
+
+    // A. SOLID SURFACE
+    const surfaceGeo = new THREE.PlaneGeometry(range*2, range*2, segments, segments);
+    surfaceGeo.rotateX(-Math.PI / 2);
+    
+    const count = surfaceGeo.attributes.position.count;
+    const colors = new Float32Array(count * 3);
+    surfaceGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    
+    const surfaceMat = new THREE.MeshBasicMaterial({ 
+        vertexColors: true,
+        transparent: true, 
+        opacity: 0.85,     
+        side: THREE.DoubleSide,
+        depthWrite: false 
+    });
+    const surfaceMesh = new THREE.Mesh(surfaceGeo, surfaceMat);
+    surfaceMesh.renderOrder = 0; 
+    basinGroup.add(surfaceMesh);
+
+    // B. GRID LINES
+    function createLineGeo(isHorizontal, index) {
+        const pts = [];
+        const fixed = -range + (2 * range * index / (gridSize - 1));
+        for(let i=0; i<=segments; i++) {
+            const t = -range + (2 * range * i / segments);
+            if(isHorizontal) pts.push(t, 0, fixed); 
+            else pts.push(fixed, 0, t);             
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+        return geo;
+    }
+
+    const gridMat = new THREE.LineBasicMaterial({ 
+        color: 0x0055aa, 
+        transparent: true, 
+        opacity: 0.3,    
+        depthTest: true,
+        depthWrite: false
+    });
+    gridMat.polygonOffset = true;
+    gridMat.polygonOffsetFactor = -2.0;
+    gridMat.polygonOffsetUnits = -5.0;
+
+    const gridLines = [];
+    for(let i=0; i<gridSize; i++) {
+        const l1 = new THREE.Line(createLineGeo(true, i), gridMat);
+        l1.renderOrder = 1; 
+        basinGroup.add(l1);
+        gridLines.push(l1);
+        const l2 = new THREE.Line(createLineGeo(false, i), gridMat);
+        l2.renderOrder = 1;
+        basinGroup.add(l2);
+        gridLines.push(l2);
+    }
+
+    // --- 3. OBJECTS ---
+    
+    // Ring (DIMMED)
+    const ringGeo = new THREE.BufferGeometry();
+    const ringPts = [];
+    for(let i=0; i<=120; i++) ringPts.push(0,0,0);
+    ringGeo.setAttribute('position', new THREE.Float32BufferAttribute(ringPts, 3));
+    const ringMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.2, linewidth: 2 });
+    const ringLine = new THREE.Line(ringGeo, ringMat);
+    ringLine.renderOrder = 2; 
+    scene.add(ringLine);
+
+    // ATTRACTOR
+    const attractorGeo = new THREE.IcosahedronGeometry(1.5, 1);
+    const attractorMat = new THREE.MeshBasicMaterial({ 
+        color: 0xff0044, 
+        wireframe: true, 
+        transparent: true, 
+        opacity: 0.4 
+    });
+    const attractor = new THREE.Mesh(attractorGeo, attractorMat);
+    const attGlowGeo = new THREE.IcosahedronGeometry(0.8, 0);
+    const attGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0044, transparent: true, opacity: 0.5 });
+    const attCore = new THREE.Mesh(attGlowGeo, attGlowMat);
+    attractor.add(attCore);
+    attractor.renderOrder = 2;
+    scene.add(attractor);
+
+    // Particle
+    const particleGeo = new THREE.SphereGeometry(0.25, 32, 32);
+    const particleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const particle = new THREE.Mesh(particleGeo, particleMat);
+    particle.renderOrder = 3;
+    scene.add(particle);
+
+    // Glow
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(64,64,0, 64,64,64);
+    grad.addColorStop(0, 'rgba(0,255,255,1)');
+    grad.addColorStop(0.5, 'rgba(0,100,255,0.3)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,128,128);
+    const glowTex = new THREE.CanvasTexture(canvas);
+    
+    const spriteMat = new THREE.SpriteMaterial({ 
+        map: glowTex, 
+        color: 0x00ffff, 
+        blending: THREE.AdditiveBlending,
+        depthTest: false, 
+        depthWrite: false
+    });
+    const glowSprite = new THREE.Sprite(spriteMat);
+    glowSprite.scale.set(4, 4, 4);
+    glowSprite.renderOrder = 999; 
+    scene.add(glowSprite); 
+
+    // Trail
+    const tailLen = 60;
+    const tailGeo = new THREE.BufferGeometry();
+    const tailPos = new Float32Array(tailLen * 3);
+    const tailCol = new Float32Array(tailLen * 3);
+    for(let i=0; i<tailLen; i++) {
+        const t = i / (tailLen - 1);
+        tailCol[i*3] = 1.0 - t; 
+        tailCol[i*3+1] = 1.0 - (0.5*t); 
+        tailCol[i*3+2] = 1.0 - (0.5*t); 
+    }
+    tailGeo.setAttribute('position', new THREE.BufferAttribute(tailPos, 3));
+    tailGeo.setAttribute('color', new THREE.BufferAttribute(tailCol, 3));
+    const tailMat = new THREE.LineBasicMaterial({ 
+        vertexColors: true, 
+        transparent: true, 
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending 
+    });
+    const tailLine = new THREE.Line(tailGeo, tailMat);
+    tailLine.renderOrder = 2;
+    scene.add(tailLine);
+
+    // --- 4. ANIMATION LOOP ---
+    const state = { 
+        t: 0, 
+        wellDepth: 50, 
+        gcSpend: 50, 
+        noise: 20, 
+        ecc: 0, 
+        radius: 7.0,
+        nX: 0, nY: 0, tnX: 0, tnY: 0 
+    };
+    
+    function getWellHeight(x, z, strength) {
+        if (strength <= 1.0) return 0;
+        const r2 = x*x + z*z;
+        const depth = (strength / 100.0) * 16.0; 
+        const sigma = 5.0; 
+        return -depth * Math.exp( -r2 / (2 * sigma * sigma) );
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        state.t += 0.02;
+
+        attractor.rotation.y -= 0.01;
+        attractor.rotation.z += 0.005;
+        attractor.position.y = (getWellHeight(0,0,state.wellDepth) * 0.7) + Math.sin(state.t) * 0.5;
+
+        const positions = surfaceMesh.geometry.attributes.position;
+        const colorAttr = surfaceMesh.geometry.attributes.color;
+        const pArray = positions.array;
+        
+        for(let i=0; i<positions.count; i++) {
+            const x = pArray[i*3];
+            const z = pArray[i*3 + 2];
+            const y = getWellHeight(x, z, state.wellDepth);
+            pArray[i*3 + 1] = y; 
+            
+            const depthNorm = Math.min(1.0, Math.abs(y) / 12.0); 
+            const dist = Math.sqrt(x*x+z*z);
+            const flatFade = Math.max(0, 1.0 - (dist/18.0)); 
+            const baseBlue = 0.05 * flatFade;
+            colorAttr.setXYZ(i, 0.0, 0.05 * depthNorm, baseBlue + (0.25 * depthNorm));
+        }
+        positions.needsUpdate = true;
+        colorAttr.needsUpdate = true;
+
+        gridLines.forEach(line => {
+            const lPos = line.geometry.attributes.position;
+            const lArr = lPos.array;
+            for(let i=0; i<=segments; i++) {
+                const idx = i * 3;
+                let x = lArr[idx];
+                let z = lArr[idx+2];
+                let y = getWellHeight(x, z, state.wellDepth); 
+                lArr[idx+1] = y + 0.05; 
+            }
+            lPos.needsUpdate = true;
+        });
+
+        const rPos = ringLine.geometry.attributes.position;
+        const stretch = 1 + state.ecc;
+        const squash = 1 - (state.ecc * 0.5);
+        for(let i=0; i<=120; i++) {
+            const theta = (i / 120) * Math.PI * 2;
+            const rx = state.radius * stretch * Math.cos(theta);
+            const rz = state.radius * squash * Math.sin(theta);
+            const ry = getWellHeight(rx, rz, state.wellDepth) + 0.05;
+            rPos.setXYZ(i, rx, ry, rz);
+        }
+        rPos.needsUpdate = true;
+
+        const perfectX = state.radius * stretch * Math.cos(state.t);
+        const perfectZ = state.radius * squash * Math.sin(state.t);
+
+        if(Math.floor(state.t * 100) % 5 === 0) {
+            const nMag = (state.noise / 100) * 5.0; 
+            state.tnX = (Math.random()-0.5) * nMag;
+            state.tnY = (Math.random()-0.5) * nMag;
+        }
+        state.nX += (state.tnX - state.nX) * 0.05;
+        state.nY += (state.tnY - state.nY) * 0.05;
+
+        const pX = perfectX + state.nX;
+        const pZ = perfectZ + state.nY;
+        const pY = getWellHeight(pX, pZ, state.wellDepth);
+        
+        particle.position.set(pX, pY, pZ);
+        glowSprite.position.copy(particle.position);
+
+        const tPos = tailLine.geometry.attributes.position.array;
+        for(let i=tailLen*3 - 1; i>2; i--) tPos[i] = tPos[i-3];
+        tPos[0] = pX; tPos[1] = pY; tPos[2] = pZ;
+        tailLine.geometry.attributes.position.needsUpdate = true;
+
+        // HUD LOGIC
+        const idealR = 7.0; 
+        const dist = Math.sqrt(pX*pX + pZ*pZ); 
+        const dev = Math.abs(dist - idealR);
+        const coh = Math.max(0, 100 - (dev * 20)); 
+        
+        document.getElementById('coh-display').innerText = "COHERENCE " + coh.toFixed(0) + "%";
+        const sEl = document.getElementById('state-display');
+        
+        if (dist > 14.0) {
+             sEl.innerText = "DRIFT COLLAPSE"; sEl.style.color = "#f00";
+        } else if (dist > 9.0) {
+             sEl.innerText = "COHERENCE DRIFT"; sEl.style.color = "#fb0";
+        } else if (dist > 6.0) {
+             sEl.innerText = "SYSTEM STABLE"; sEl.style.color = "#0f0"; 
+        } else if (dist > 3.5) {
+             sEl.innerText = "DEEP FOCUS"; sEl.style.color = "#0ff";
+        } else { 
+            sEl.innerText = "SYSTEM RIGIDITY"; sEl.style.color = "#f00";
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    animate();
+
+    const slDepth = document.getElementById('sl-depth');
+    const slGC = document.getElementById('sl-gc');
+    const slNoise = document.getElementById('sl-noise');
+    const slEcc = document.getElementById('sl-ecc');
+    
+    const valDepth = document.getElementById('val-depth');
+    const valGC = document.getElementById('val-gc');
+    const valNoise = document.getElementById('val-noise');
+    const valEcc = document.getElementById('val-ecc');
+    const eEl = document.getElementById('energy-display');
+
+    function updateParams() {
+        state.wellDepth = parseInt(slDepth.value);
+        state.gcSpend = parseInt(slGC.value); 
+        state.noise = parseInt(slNoise.value);
+        state.ecc = parseInt(slEcc.value) / 100.0;
+        
+        valDepth.innerText = state.wellDepth;
+        valGC.innerText = state.gcSpend;
+        valNoise.innerText = state.noise;
+        valEcc.innerText = state.ecc.toFixed(2);
+        
+        const gc = state.gcSpend;
+        if (gc > 80) {
+            eEl.innerText = "ENERGY: EXCESSIVE"; eEl.style.color = "#f00";
+        } else if (gc > 60) {
+            eEl.innerText = "ENERGY: HIGH"; eEl.style.color = "#0ff";
+        } else if (gc > 40) {
+            eEl.innerText = "ENERGY: OK"; eEl.style.color = "#0f0";
+        } else if (gc > 20) {
+            eEl.innerText = "ENERGY: LOW"; eEl.style.color = "#fb0";
+        } else {
+            eEl.innerText = "ENERGY: DEPLETED"; eEl.style.color = "#f00";
+        }
+        
+        const resistance = 15.0 + (state.wellDepth * state.wellDepth * 0.75);
+        const deviation = (50 - state.gcSpend); 
+        const change = (deviation * 250.0) / resistance;
+        
+        state.radius = 7.0 + change;
+        
+        if (state.radius < 0.1) state.radius = 0.1;
+        if (state.radius > 30.0) state.radius = 30.0;
+    }
+
+    slDepth.addEventListener('input', updateParams);
+    slGC.addEventListener('input', updateParams);
+    slNoise.addEventListener('input', updateParams);
+    slEcc.addEventListener('input', updateParams);
+    updateParams();
+</script>
+</body>
+</html>
