@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Identity Lab v0.1</title>
+    <style>
+        /* BASE RESET */
+        body { 
+            margin: 0; overflow: hidden; 
+            background-color: #000; 
+            font-family: 'Roboto', sans-serif; 
+            color: #fff;
+            min-height: 250px; 
+        }
+        canvas { display: block; width: 100%; height: 100%; } 
+        * { box-sizing: border-box; }
+
+        /* UI LAYOUT */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #header {
+            padding: 30px; 
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+            pointer-events: auto; 
+            text-align: left;
+            text-shadow: 0 0 10px #000;
+            display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+        }
+        
+        h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: 2px; color: #fff; line-height: 1; }
+        h2 { margin: 0 0 10px 0; font-size: 14px; color: #fff; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
+
+        /* HEADER CONTROLS (Load/Save) */
+        #header-controls {
+            display: flex; gap: 10px; pointer-events: auto;
+        }
+        .header-btn {
+            background: transparent; border: 1px solid #555; color: #aaa;
+            padding: 4px 10px; font-size: 10px; font-weight: bold; text-transform: uppercase;
+            border-radius: 4px; cursor: pointer; transition: all 0.2s;
+        }
+        .header-btn:hover { border-color: #00e5ff; color: #00e5ff; background: rgba(0, 229, 255, 0.1); }
+        #file-input { display: none; }
+
+        /* BREADCRUMBS (Now Outside Editor) */
+        #breadcrumbs-container {
+            position: absolute; top: 145px; left: 20px;
+            width: 420px;
+            pointer-events: auto;
+            display: flex; gap: 5px; font-size: 11px; color: #888;
+            padding-bottom: 5px;
+        }
+        .crumb { cursor: pointer; color: #00e5ff; text-decoration: underline; }
+        .crumb:hover { color: #fff; }
+        .crumb-sep { color: #444; }
+        .crumb-current { color: #aaa; text-decoration: none; cursor: default; }
+
+        /* EDITOR PANEL */
+        #editor-panel {
+            position: absolute; top: 165px; left: 20px; 
+            width: 420px; 
+            background: rgba(10, 10, 10, 0.95); 
+            border: 1px solid #444;
+            border-radius: 8px; 
+            padding: 10px; 
+            pointer-events: auto;
+            max-height: calc(100% - 240px);
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; gap: 5px;
+        }
+
+        /* SURFACE TITLE (CENTERED) */
+        #surface-title {
+            position: absolute; top: 90px; left: 0; width: 100%;
+            text-align: center; font-size: 20px; font-weight: 700; 
+            letter-spacing: 2px; color: #fff; text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        /* MODAL */
+        #modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: none; justify-content: center; align-items: center;
+            pointer-events: auto; z-index: 1000;
+        }
+        #modal-box {
+            background: #111; border: 1px solid #00e5ff; border-radius: 8px;
+            padding: 20px; width: 300px; text-align: center;
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.2);
+        }
+        .modal-text { font-size: 14px; margin-bottom: 20px; color: #fff; }
+        .modal-btns { display: flex; justify-content: center; gap: 20px; }
+        .modal-btn {
+            padding: 8px 20px; border: 1px solid #444; background: #222; color: #fff;
+            cursor: pointer; font-weight: bold; border-radius: 4px;
+        }
+        .modal-btn:hover { background: #333; border-color: #fff; }
+        .btn-confirm { border-color: #00e5ff; color: #00e5ff; }
+        .btn-confirm:hover { background: #003344; }
+
+        /* EDITOR STYLES */
+        .surface-name-row { margin-bottom: 5px; } /* Reduced margin */
+        
+        .surface-name-input {
+            background: #111; border: 1px solid #555; color: #fff; font-size: 14px; font-weight: bold;
+            padding: 6px; border-radius: 4px; width: 100%; font-family: 'Roboto', sans-serif;
+        }
+        .surface-name-input:focus { border-color: #ffaa00; outline: none; }
+
+        .row { display: flex; align-items: center; gap: 4px; }
+        .header { font-size: 10px; font-weight: bold; color: #888; padding-bottom: 5px; border-bottom: 1px solid #555; margin-bottom: 5px; }
+        .col-btn { width: 24px; flex-shrink: 0; display: flex; justify-content: center; }
+        .col-id { width: 20px; text-align: center; flex-shrink: 0; font-family: monospace; font-size: 10px; color: #666; }
+        .col-name { flex-grow: 1; min-width: 100px; }
+        .col-val { width: 50px; flex-shrink: 0; }
+        input { background: #222; border: 1px solid #555; color: #fff; padding: 4px; font-size: 11px; border-radius: 4px; width: 100%; }
+        input:focus { border-color: #00e5ff; outline: none; }
+        input.val-input { text-align: center; color: #00e5ff; font-family: monospace; }
+        input.time-input { text-align: center; color: #ffaa00; font-weight: bold; border-color: #664400; }
+        .btn { background: #333; border: 1px solid #555; color: #fff; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; text-align: center; padding: 0; font-size: 12px; line-height: 18px; }
+        .btn-add:hover { background: #444; color: #00ff00; border-color: #00ff00; }
+        .btn-del:hover { background: #444; color: #ff4444; border-color: #ff4444; }
+
+        /* DATA PANEL */
+        #data-panel {
+            position: absolute; right: 20px; top: 80px; width: 220px;
+            background: rgba(10, 10, 10, 0.9); border: 1px solid #444;
+            border-radius: 8px; padding: 15px; pointer-events: auto; display: none; 
+        }
+        .data-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #ccc; }
+        .data-val { font-family: monospace; color: #ffaa00; font-weight: bold;}
+        #toggle-data {
+            position: absolute; top: 20px; right: 30px; pointer-events: auto;
+            background: #222; border: 1px solid #555; color: #fff; padding: 6px 12px; cursor: pointer; font-size: 11px; 
+        }
+
+        /* TIMELINE */
+        #timeline-container {
+            pointer-events: auto;
+            background: rgba(20, 20, 20, 0.9);
+            border-top: 1px solid #444; padding: 20px 40px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .control-row { display: flex; align-items: center; gap: 20px; }
+        input[type=range] { flex: 1; cursor: pointer; }
+        .time-display { font-family: monospace; font-size: 14px; color: #fff; width: 60px; text-align: right; }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div id="header">
+        <h1>IDENTITY LAB v0.1</h1>
+        <h2>USC SURFACE MAPPING</h2>
+        <div id="header-controls">
+            <button id="btn-save" class="header-btn">Save JSON</button>
+            <button id="btn-load" class="header-btn">Load JSON</button>
+        </div>
+    </div>
+    
+    <div id="surface-title">ROOT SURFACE</div>
+
+    <div id="breadcrumbs-container"></div>
+    <div id="editor-panel"></div>
+
+    <div id="modal-overlay">
+        <div id="modal-box">
+            <div class="modal-text">Create new subsurface for this axis?</div>
+            <div class="modal-btns">
+                <button class="modal-btn btn-confirm" id="btn-create-yes">YES</button>
+                <button class="modal-btn" id="btn-create-no">NO</button>
+            </div>
+        </div>
+    </div>
+
+    <button id="toggle-data">Toggle Monitor</button>
+
+    <div id="data-panel">
+        <div style="margin-bottom:10px; border-bottom:1px solid #555; font-size:10px; font-weight:bold;">LIVE INTERPOLATION</div>
+        <div id="axis-list"></div>
+    </div>
+
+    <div id="timeline-container">
+        <div class="control-row">
+            <span style="font-size:11px; color:#aaa; font-weight:bold;">TIMELINE</span>
+            <input type="range" id="timeline" min="0" max="100" value="0" step="0.1">
+            <span class="time-display" id="time-val">T+00</span>
+        </div>
+    </div>
+    
+    <input type="file" id="file-input" accept=".json">
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- DATA STRUCTURE ---
+    let WORLD = {
+        surfaces: {
+            'root': {
+                id: 'root', name: 'Root Surface', parentId: null, parentAxisId: null,
+                timePoints: [0], 
+                axes: [
+                    { id: '1', name: 'Axis Name', childSurfaceId: null },
+                    { id: '2', name: 'Axis Name', childSurfaceId: null },
+                    { id: '3', name: 'Axis Name', childSurfaceId: null },
+                    { id: '4', name: 'Axis Name', childSurfaceId: null },
+                    { id: '5', name: 'Axis Name', childSurfaceId: null },
+                    { id: '6', name: 'Axis Name', childSurfaceId: null }
+                ],
+                values: { '1': [0], '2': [0], '3': [0], '4': [0], '5': [0], '6': [0] }
+            }
+        },
+        currentSurfaceId: 'root'
+    };
+
+    const CONFIG = {
+        radius: 35,          
+        segments: 128,       
+        axisThickness: 0.15,
+        maxAxes: 12, minAxes: 1, maxKeys: 3, minKeys: 1
+    };
+
+    let axisObjects = []; 
+    let interactables = []; 
+    let meshToAxisId = {}; 
+    let perimeterMesh = null;
+    let surfaceMesh = null;
+    const perimeterMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    let pendingAxisId = null;
+
+    // --- SCENE ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    const initHeight = Math.max(250, window.innerHeight);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / initHeight, 0.1, 1000);
+    camera.position.set(0, 60, 60); camera.lookAt(0, 0, 0);
+    
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, initHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 1.5; 
+
+    // MESH
+    const geometry = new THREE.CircleGeometry(CONFIG.radius, CONFIG.segments);
+    geometry.rotateX(-Math.PI / 2); 
+    geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geometry.attributes.position.count * 3), 3));
+    surfaceMesh = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+        vertexColors: true, side: THREE.DoubleSide, shininess: 30, specular: 0x111111, flatShading: false
+    }));
+    scene.add(surfaceMesh);
+
+    const ambientLight = new THREE.AmbientLight(0x404040); scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(20, 50, 20); scene.add(dirLight);
+    const bottomLight = new THREE.DirectionalLight(0x444444, 0.5); bottomLight.position.set(0, -50, 0); scene.add(bottomLight);
+
+    // --- LOGIC ---
+    function getPerturbedValue(surfaceId, axisId, t) {
+        const surface = WORLD.surfaces[surfaceId];
+        if (!surface) return 0;
+        const times = surface.timePoints; const vals = surface.values[axisId];
+        let baseVal = 0;
+        if (t <= times[0]) baseVal = vals[0];
+        else if (t >= times[times.length-1]) baseVal = vals[vals.length-1];
+        else {
+            for (let i = 0; i < times.length - 1; i++) {
+                if (t >= times[i] && t <= times[i+1]) {
+                    const range = times[i+1] - times[i];
+                    const localT = (range === 0) ? 0 : (t - times[i]) / range;
+                    baseVal = vals[i] + (vals[i+1] - vals[i]) * localT;
+                    break;
+                }
+            }
+        }
+        const axis = surface.axes.find(a => a.id === axisId);
+        if (axis && axis.childSurfaceId) {
+            const childId = axis.childSurfaceId;
+            const childSurf = WORLD.surfaces[childId];
+            if (childSurf) {
+                let sum = 0;
+                childSurf.axes.forEach(childAxis => { sum += getPerturbedValue(childId, childAxis.id, t); });
+                baseVal += (sum / childSurf.axes.length);
+            }
+        }
+        return Math.min(20, Math.max(-20, baseVal));
+    }
+
+    function createLabelTexture(text) {
+        const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'white';
+        ctx.font = 'bold 40px "Roboto Condensed", "Arial Narrow", sans-serif'; 
+        ctx.shadowColor = "black"; ctx.shadowBlur = 4; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+        ctx.fillText(text.toUpperCase(), canvas.width / 2, canvas.height / 2);
+        const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true; return tex;
+    }
+
+    function rebuild3DScene() {
+        const surface = WORLD.surfaces[WORLD.currentSurfaceId];
+        axisObjects.forEach(obj => {
+            scene.remove(obj.pivot);
+            if(obj.spoke.geometry) obj.spoke.geometry.dispose();
+            if(obj.label.geometry) obj.label.geometry.dispose();
+            if(obj.label.material.map) obj.label.material.map.dispose();
+        });
+        axisObjects = []; interactables = []; meshToAxisId = {};
+
+        // UPDATE 3D TITLE
+        document.getElementById('surface-title').innerText = surface.name;
+        
+        renderBreadcrumbs();
+
+        const totalAxes = surface.axes.length;
+        const angleStep = 360 / totalAxes;
+
+        surface.axes.forEach((axis, index) => {
+            const angle = index * angleStep;
+            const pivot = new THREE.Group(); pivot.rotation.y = angle * (Math.PI / 180);
+            scene.add(pivot);
+            const arm = new THREE.Group(); pivot.add(arm);
+
+            const geo = new THREE.CylinderGeometry(CONFIG.axisThickness, CONFIG.axisThickness, 1.0, 16);
+            geo.translate(0, 0.5, 0); const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const spoke = new THREE.Mesh(geo, mat);
+            spoke.rotation.z = -Math.PI / 2; spoke.scale.y = CONFIG.radius; 
+            arm.add(spoke);
+
+            const labelTex = createLabelTexture(axis.name);
+            const planeW = 26; const planeH = 6.5; 
+            const labelGeo = new THREE.PlaneGeometry(planeW, planeH);
+            labelGeo.translate(0, planeH / 2, 0); 
+            const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, side: THREE.FrontSide, depthTest: false, color: 0xffffff });
+            const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+            labelMesh.renderOrder = 999; labelMesh.rotation.x = -Math.PI / 2; labelMesh.position.set(CONFIG.radius * 0.5, 0, 0.35); 
+            arm.add(labelMesh);
+
+            axisObjects.push({ id: axis.id, pivot, arm, spoke, label: labelMesh, angle });
+            interactables.push(spoke); interactables.push(labelMesh);
+            meshToAxisId[spoke.uuid] = axis.id; meshToAxisId[labelMesh.uuid] = axis.id;
+        });
+    }
+
+    function renderBreadcrumbs() {
+        const div = document.getElementById('breadcrumbs-container');
+        if(!div) return; div.innerHTML = '';
+        const path = []; let curr = WORLD.surfaces[WORLD.currentSurfaceId];
+        while(curr) {
+            path.unshift(curr);
+            if (curr.parentId) curr = WORLD.surfaces[curr.parentId]; else curr = null;
+        }
+        path.forEach((s, i) => {
+            const span = document.createElement('span'); span.innerText = s.name.toUpperCase();
+            if (i === path.length - 1) span.className = 'crumb-current';
+            else { span.className = 'crumb'; span.onclick = () => switchSurface(s.id); }
+            div.appendChild(span);
+            if (i < path.length - 1) { const sep = document.createElement('span'); sep.className = 'crumb-sep'; sep.innerText = ' > '; div.appendChild(sep); }
+        });
+    }
+
+    function switchSurface(id) {
+        WORLD.currentSurfaceId = id;
+        rebuild3DScene(); renderEditor(); updateSurface();
+    }
+
+    function navigateUp() {
+        const currentSurf = WORLD.surfaces[WORLD.currentSurfaceId];
+        if (currentSurf.parentId) {
+            switchSurface(currentSurf.parentId);
+        }
+    }
+
+    function handleAxisClick(axisId) {
+        if (pendingAxisId !== null) return;
+        const currentSurf = WORLD.surfaces[WORLD.currentSurfaceId];
+        const axis = currentSurf.axes.find(a => a.id === axisId);
+        if (axis.childSurfaceId) {
+            switchSurface(axis.childSurfaceId);
+        } else {
+            pendingAxisId = axisId;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+    }
+
+    document.getElementById('btn-create-no').onclick = (e) => {
+        e.stopPropagation();
+        document.getElementById('modal-overlay').style.display = 'none';
+        pendingAxisId = null;
+    };
+
+    document.getElementById('btn-create-yes').onclick = (e) => {
+        e.stopPropagation();
+        if (!pendingAxisId) return;
+        
+        // PARENT AXIS NAME LOOKUP
+        const parentSurf = WORLD.surfaces[WORLD.currentSurfaceId];
+        const axis = parentSurf.axes.find(a => a.id === pendingAxisId);
+        const newName = axis ? axis.name : "New Sub-Surface"; // CLEAN NAMING (No suffix)
+
+        const newId = 'surf_' + Date.now();
+        WORLD.surfaces[newId] = {
+            id: newId, 
+            name: newName, 
+            parentId: WORLD.currentSurfaceId, 
+            parentAxisId: pendingAxisId,
+            timePoints: [0],
+            axes: [
+                { id: '1', name: 'SubAxis 1', childSurfaceId: null },
+                { id: '2', name: 'SubAxis 2', childSurfaceId: null },
+                { id: '3', name: 'SubAxis 3', childSurfaceId: null },
+                { id: '4', name: 'SubAxis 4', childSurfaceId: null },
+                { id: '5', name: 'SubAxis 5', childSurfaceId: null },
+                { id: '6', name: 'SubAxis 6', childSurfaceId: null }
+            ],
+            values: { '1':[0], '2':[0], '3':[0], '4':[0], '5':[0], '6':[0] }
+        };
+        
+        axis.childSurfaceId = newId;
+        document.getElementById('modal-overlay').style.display = 'none';
+        pendingAxisId = null; 
+        switchSurface(newId);
+    };
+
+    // --- STOP PROPAGATION ON UI ---
+    ['header', 'editor-panel', 'breadcrumbs-container', 'timeline-container', 'modal-box', 'data-panel', 'toggle-data'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    // --- EDITOR ---
+    function renderEditor() {
+        const panel = document.getElementById('editor-panel');
+        panel.innerHTML = '';
+        
+        // No Breadcrumbs here (Moved out)
+        
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+
+        // START WITH NAME INPUT (No Label)
+        const nameRow = document.createElement('div'); nameRow.className = 'surface-name-row';
+        const nameInput = document.createElement('input'); nameInput.className = 'surface-name-input'; 
+        nameInput.value = surf.name;
+        nameInput.oninput = (e) => updateSurfaceName(e.target.value);
+        nameRow.appendChild(nameInput);
+        panel.appendChild(nameRow);
+
+        const header = document.createElement('div'); header.className = 'row header';
+        const c1 = document.createElement('div'); c1.className='col-btn';
+        if (surf.axes.length < CONFIG.maxAxes) {
+            const btn = document.createElement('button'); btn.className = 'btn btn-add'; btn.innerText = '+';
+            btn.onclick = () => addAxis(); c1.appendChild(btn);
+        }
+        header.appendChild(c1);
+        const c2 = document.createElement('div'); c2.className='col-id'; c2.innerText = '#'; header.appendChild(c2);
+        const c3 = document.createElement('div'); c3.className='col-name'; c3.innerText = 'AXIS NAME'; header.appendChild(c3);
+
+        surf.timePoints.forEach((t, i) => {
+            const cT = document.createElement('div'); cT.className='col-val';
+            const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.flexDirection='column'; wrap.style.gap='2px';
+            const inp = document.createElement('input'); inp.type='number'; inp.className='time-input'; inp.value = t;
+            inp.onchange = (e) => updateTimePoint(i, e.target.value);
+            wrap.appendChild(inp);
+            const del = document.createElement('button'); del.className = 'btn btn-del'; del.innerText = '-';
+            del.style.width='100%'; del.style.height='12px'; del.style.lineHeight='10px';
+            if (i === 0) { del.style.visibility='hidden'; del.style.pointerEvents='none'; } else { del.onclick = () => removeTimePoint(i); }
+            wrap.appendChild(del); cT.appendChild(wrap); header.appendChild(cT);
+        });
+        if (surf.timePoints.length < CONFIG.maxKeys) {
+            const cAdd = document.createElement('div'); cAdd.className='col-btn';
+            const btn = document.createElement('button'); btn.className = 'btn btn-add'; btn.innerText = '+';
+            btn.onclick = () => addTimePoint(); cAdd.appendChild(btn); header.appendChild(cAdd);
+        }
+        panel.appendChild(header);
+
+        surf.axes.forEach((axis, index) => {
+            const r = document.createElement('div'); r.className='row';
+            const cBtn = document.createElement('div'); cBtn.className='col-btn';
+            if (index > 0) {
+                const btn = document.createElement('button'); btn.className = 'btn btn-del'; btn.innerText = '-';
+                btn.onclick = () => removeAxis(axis.id); cBtn.appendChild(btn);
+            }
+            r.appendChild(cBtn);
+            const cId = document.createElement('div'); cId.className='col-id'; cId.innerText=axis.id; r.appendChild(cId);
+            const cName = document.createElement('div'); cName.className='col-name';
+            const iName = document.createElement('input'); iName.value = axis.name;
+            iName.oninput = (e) => updateAxisName(axis.id, e.target.value);
+            cName.appendChild(iName); r.appendChild(cName);
+            surf.timePoints.forEach((t, i) => {
+                const cVal = document.createElement('div'); cVal.className='col-val';
+                const iVal = document.createElement('input'); iVal.className='val-input'; iVal.type='number';
+                iVal.value = surf.values[axis.id][i];
+                iVal.onchange = (e) => updateValue(axis.id, i, e.target.value);
+                cVal.appendChild(iVal); r.appendChild(cVal);
+            });
+            if (surf.timePoints.length < CONFIG.maxKeys) { const cSpace = document.createElement('div'); cSpace.className='col-btn'; r.appendChild(cSpace); }
+            panel.appendChild(r);
+        });
+        renderBreadcrumbs();
+    }
+
+    // --- PERSISTENCE ---
+    function saveWorld() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(WORLD, null, 2));
+        const anchor = document.createElement('a');
+        anchor.setAttribute("href", dataStr);
+        anchor.setAttribute("download", "identity_world.json");
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    }
+    
+    document.getElementById('btn-save').onclick = saveWorld;
+    document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
+
+    document.getElementById('file-input').addEventListener('change', function(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const loaded = JSON.parse(e.target.result);
+                if (loaded.surfaces && loaded.surfaces.root && loaded.currentSurfaceId) {
+                    WORLD = loaded; rebuild3DScene(); renderEditor(); updateSurface(); alert("World Loaded Successfully!");
+                } else alert("Invalid JSON format.");
+            } catch(err) { alert("Error loading file: " + err); }
+        };
+        reader.readAsText(file);
+    });
+
+    window.updateSurfaceName = (name) => { WORLD.surfaces[WORLD.currentSurfaceId].name = name; document.getElementById('surface-title').innerText = name; renderBreadcrumbs(); };
+    window.addAxis = () => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        let maxId = 0; surf.axes.forEach(a => maxId = Math.max(maxId, parseInt(a.id)));
+        const finalId = (maxId + 1).toString();
+        surf.axes.push({ id: finalId, name: 'New Axis', childSurfaceId: null });
+        surf.values[finalId] = new Array(surf.timePoints.length).fill(0);
+        rebuild3DScene(); renderEditor(); updateSurface();
+    };
+    window.removeAxis = (id) => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        surf.axes = surf.axes.filter(a => a.id !== id); delete surf.values[id];
+        rebuild3DScene(); renderEditor(); updateSurface();
+    };
+    window.addTimePoint = () => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        const lastT = surf.timePoints[surf.timePoints.length-1];
+        let newT = Math.min(100, lastT + 10);
+        if (surf.timePoints.includes(newT)) newT = Math.min(100, newT + 5); 
+        surf.timePoints.push(newT);
+        Object.keys(surf.values).forEach(k => { surf.values[k].push(0); });
+        sortTime(surf); renderEditor(); updateSurface();
+    };
+    window.removeTimePoint = (idx) => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        surf.timePoints.splice(idx, 1);
+        Object.keys(surf.values).forEach(k => { surf.values[k].splice(idx, 1); });
+        renderEditor(); updateSurface();
+    };
+    window.updateTimePoint = (idx, val) => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        surf.timePoints[idx] = Math.min(100, Math.max(0, parseFloat(val)||0));
+        sortTime(surf); renderEditor(); updateSurface();
+    };
+    window.updateValue = (aid, idx, val) => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        surf.values[aid][idx] = Math.min(10, Math.max(-10, parseFloat(val)||0));
+        updateSurface();
+    };
+    window.updateAxisName = (aid, name) => {
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        const axis = surf.axes.find(a => a.id === aid);
+        if(axis) axis.name = name;
+        const obj = axisObjects.find(o => o.id === aid);
+        if(obj) {
+            const newTex = createLabelTexture(name);
+            obj.label.material.map.dispose(); obj.label.material.map = newTex; obj.label.material.needsUpdate = true;
+        }
+    };
+    function sortTime(surf) {
+        const indices = surf.timePoints.map((_, i) => i);
+        indices.sort((a, b) => surf.timePoints[a] - surf.timePoints[b]);
+        const newTimes = indices.map(i => surf.timePoints[i]);
+        surf.timePoints = newTimes;
+        Object.keys(surf.values).forEach(k => {
+            const oldArr = surf.values[k];
+            const newArr = indices.map(i => oldArr[i]);
+            surf.values[k] = newArr;
+        });
+    }
+
+    function catmullRom(p0, p1, p2, p3, t) {
+        const v0 = (p2 - p0) * 0.5; const v1 = (p3 - p1) * 0.5;
+        const t2 = t * t; const t3 = t * t2;
+        return (2 * p1 - 2 * p2 + v0 + v1) * t3 + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t2 + v0 * t + p1;
+    }
+    function getRimValueAtAngle(angleDeg, axisValues) {
+        if (angleDeg < 0) angleDeg += 360; angleDeg = angleDeg % 360;
+        const total = axisValues.length; const step = 360 / total;
+        let sectorIdx = Math.floor(angleDeg / step); let sectorAngle = angleDeg % step; let t_sector = sectorAngle / step;
+        let p0 = axisValues[(sectorIdx - 1 + total) % total];
+        let p1 = axisValues[sectorIdx % total];
+        let p2 = axisValues[(sectorIdx + 1) % total];
+        let p3 = axisValues[(sectorIdx + 2) % total];
+        return catmullRom(p0, p1, p2, p3, t_sector);
+    }
+    
+    const colGreen = new THREE.Color(0x00ff44); const colAmber = new THREE.Color(0xffaa00); const colRed = new THREE.Color(0xff0000); 
+
+    function updateSurface() {
+        const positions = geometry.attributes.position; const colors = geometry.attributes.color;
+        const t = parseFloat(document.getElementById('timeline').value);
+        document.getElementById('time-val').innerText = "T+" + t.toFixed(0);
+        
+        const dataList = document.getElementById('axis-list'); dataList.innerHTML = ''; 
+        const surf = WORLD.surfaces[WORLD.currentSurfaceId];
+        const axisValues = [];
+
+        surf.axes.forEach((axis, idx) => {
+            const val = getPerturbedValue(WORLD.currentSurfaceId, axis.id, t);
+            axisValues[idx] = val;
+            const row = document.createElement('div'); row.className = 'data-row';
+            row.innerHTML = `<span>${axis.name}</span> <span class="data-val">${val.toFixed(2)}</span>`;
+            dataList.appendChild(row);
+        });
+
+        positions.setY(0, 0); colors.setXYZ(0, colAmber.r, colAmber.g, colAmber.b); 
+        for (let i = 1; i < positions.count; i++) {
+            const px = positions.getX(i); const pz = positions.getZ(i); const dist = Math.sqrt(px*px + pz*pz);
+            let angleDeg = Math.atan2(-pz, px) * (180 / Math.PI); 
+            let rimVal = getRimValueAtAngle(angleDeg, axisValues);
+            const y = rimVal * 1.5 * (dist / CONFIG.radius);
+            positions.setY(i, y);
+            const c = colAmber.clone(); const vNorm = rimVal * (dist / CONFIG.radius); 
+            if (vNorm > 0) c.lerp(colRed, Math.min(1, vNorm / 10)); else c.lerp(colGreen, Math.min(1, Math.abs(vNorm) / 10));
+            colors.setXYZ(i, c.r, c.g, c.b);
+        }
+        positions.needsUpdate = true; colors.needsUpdate = true;
+
+        axisObjects.forEach((item, idx) => {
+            const val = axisValues[idx];
+            const tipY = val * 1.5; const length = Math.sqrt(CONFIG.radius**2 + tipY**2); const elev = Math.atan2(tipY, CONFIG.radius);            
+            item.arm.rotation.z = elev; item.spoke.scale.y = length;
+            
+            const r_mid = CONFIG.radius * 0.5; const d_offset = 2.5; 
+            const deltaDeg = (Math.atan2(d_offset, r_mid) * 180 / Math.PI);
+            const targetAngle = item.angle - deltaDeg;
+            const rimValLabel = getRimValueAtAngle(targetAngle, axisValues);
+            const h_surf = rimValLabel * 1.5 * 0.5; const h_spoke = val * 1.5 * 0.5;
+            const roll = Math.atan2(h_surf - h_spoke, d_offset);
+            
+            item.label.rotation.x = -Math.PI / 2 - roll; 
+            item.label.position.set(length * 0.5, d_offset * Math.sin(roll), 0.35); 
+        });
+
+        updatePerimeterLine(axisValues);
+    }
+
+    function updatePerimeterLine(axisValues) {
+        const perimeterPoints = [];
+        const segs = CONFIG.segments;
+        
+        for (let i = 0; i <= segs; i++) {
+            const theta = (i/segs)*Math.PI*2;
+            const x = CONFIG.radius*Math.cos(theta); const z = CONFIG.radius*Math.sin(theta);
+            let aDeg = Math.atan2(-z, x) * 180/Math.PI;
+            const y = getRimValueAtAngle(aDeg, axisValues) * 1.5;
+            perimeterPoints.push(new THREE.Vector3(x,y,z));
+        }
+        const path = new THREE.CatmullRomCurve3(perimeterPoints, true); 
+        if (perimeterMesh) perimeterMesh.geometry.dispose();
+        const tube = new THREE.TubeGeometry(path, 128, CONFIG.axisThickness/2, 8, true);
+        if(!perimeterMesh) {
+            perimeterMesh = new THREE.Mesh(tube, perimeterMat); perimeterMesh.renderOrder=998; scene.add(perimeterMesh);
+        } else perimeterMesh.geometry = tube;
+    }
+
+    const raycaster = new THREE.Raycaster(); const pointer = new THREE.Vector2(); let hoveredAxisId = null;
+    function checkIntersection() {
+        if (pendingAxisId !== null) return; 
+        raycaster.setFromCamera(pointer, camera); const intersects = raycaster.intersectObjects(interactables);
+        let targetId = null; if (intersects.length > 0) targetId = meshToAxisId[intersects[0].object.uuid];
+        if (targetId !== hoveredAxisId) { 
+            hoveredAxisId = targetId; 
+            axisObjects.forEach(obj => {
+                const isHov = (obj.id === hoveredAxisId);
+                obj.spoke.material.color.setHex(isHov ? 0x00e5ff : 0xffffff);
+                obj.label.material.color.setHex(isHov ? 0x00e5ff : 0xffffff);
+            });
+        }
+    }
+    window.addEventListener('click', (e) => {
+        if (e.target.closest('#editor-panel') || e.target.closest('#timeline-container') || e.target.closest('#header') || e.target.closest('#data-panel') || e.target.closest('#toggle-data') || e.target.closest('.modal-btn')) return;
+        if (hoveredAxisId) handleAxisClick(hoveredAxisId);
+        else if (pendingAxisId === null) {
+            raycaster.setFromCamera(pointer, camera);
+            const surfaceHits = raycaster.intersectObject(surfaceMesh);
+            if (surfaceHits.length === 0) navigateUp();
+        }
+    });
+    window.addEventListener( 'pointermove', (e) => { pointer.x = ( e.clientX / window.innerWidth ) * 2 - 1; pointer.y = - ( e.clientY / Math.max(250, window.innerHeight) ) * 2 + 1; });
+    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / Math.max(250, window.innerHeight); camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, Math.max(250, window.innerHeight)); updateSurface(); });
+    document.getElementById('timeline').addEventListener('input', updateSurface);
+    document.getElementById('toggle-data').addEventListener('click', () => { const p = document.getElementById('data-panel'); p.style.display = p.style.display==='block'?'none':'block'; });
+
+    rebuild3DScene(); renderEditor(); updateSurface();
+    function animate() { requestAnimationFrame(animate); checkIntersection(); controls.update(); updateSurface(); renderer.render(scene, camera); }
+    animate();
+</script>
+</body>
+</html>
