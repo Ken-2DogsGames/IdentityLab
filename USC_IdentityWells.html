@@ -21,7 +21,7 @@
         #hud-right { position: absolute; top: 30px; right: 30px; text-align: right; text-shadow: 0 0 10px #000; }
         .debug-val { font-family: 'Courier New', monospace; font-size: 14px; color: #0ff; font-weight: bold; }
 
-        #hud-top { margin-top: 120px; text-align: center; text-shadow: 0 0 10px #000; }
+        #hud-top { margin-top: 120px; text-align: center; text-shadow: 0 0 10px #000; pointer-events: auto; }
         .big-val { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 2px; }
         .sub-val { font-size: 14px; color: #aaa; text-transform: uppercase; margin-top: 5px; font-weight: bold; }
         .energy-val { margin-top: 4px; }
@@ -41,7 +41,7 @@
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
-        /* V101: Header UI Polish */
+        /* Header UI */
         .panel-header-row {
             display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px;
@@ -52,11 +52,53 @@
         .ai-mode-wrapper {
             display: flex; align-items: center; gap: 4px; 
         }
+        
+        /* TOOLTIP SYSTEM */
+        .tooltip-target {
+            position: relative;
+            cursor: help;
+        }
+        
+        .tooltip-target::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid #444;
+            color: #eee;
+            padding: 10px 14px;
+            border-radius: 4px;
+            font-family: 'Roboto', sans-serif;
+            font-size: 12px;
+            font-weight: normal;
+            white-space: pre-wrap;
+            width: 240px;
+            text-align: left;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            line-height: 1.4;
+            text-transform: none;
+        }
+        
+        .tooltip-target:hover::after {
+            opacity: 1;
+        }
+
+        /* V108: Increased width for Coherence Display tooltip */
+        #coh-display.tooltip-target::after {
+            bottom: -50px; top: 100%; 
+            width: 320px; /* Increased from default 240px */
+        }
+
         .ai-label {
-            font-size: 10px; font-weight: bold; color: #00e5ff; /* Blue */
+            font-size: 10px; font-weight: bold; color: #00e5ff; 
             text-transform: uppercase; letter-spacing: 1px;
         }
-        /* Custom Checkbox Styling */
+        
+        /* Checkbox */
         input[type=checkbox] {
             appearance: none; width: 14px; height: 14px;
             border: 2px solid #00e5ff; border-radius: 3px;
@@ -73,16 +115,20 @@
             transform: rotate(45deg);
         }
 
-
         .slider-row { display: flex; align-items: center; gap: 15px; margin-bottom: 8px; }
         .slider-row:last-child { margin-bottom: 0; }
-        label { width: 120px; color: #00e5ff; font-size: 11px; font-weight: bold; letter-spacing: 1px; }
+        
+        /* Label Styling */
+        label { 
+            width: 120px; color: #00e5ff; font-size: 11px; font-weight: bold; letter-spacing: 1px; 
+        }
+        
         input[type=range] { flex: 1; accent-color: #00e5ff; cursor: pointer; }
         .val-display { width: 30px; color: #fff; font-size: 11px; font-weight: bold; text-align: right; }
 
         #panel-fec { border-color: #443300; }
         #panel-fec .panel-title { color: #aa7700; }
-        #panel-fec label { color: #ffaa00; }
+        #panel-fec label { color: #ffaa00; width: 140px; } /* Slightly wider label for STRENGTH text */
         #panel-fec input[type=range] { accent-color: #ffaa00; }
 
     </style>
@@ -101,7 +147,7 @@
 <div id="ui-layer">
     <div id="hud-left">
         <div class="app-title">IDENTITY LAB v0.1</div>
-        <div class="app-subtitle">IDENTITY WELLS</div>
+        <div class="app-subtitle">UNIFIED EMERGENT COHERENCE</div>
     </div>
 
     <div id="hud-right">
@@ -109,9 +155,9 @@
     </div>
 
     <div id="hud-top">
-        <div id="coh-display" class="big-val">COHERENCE 100%</div>
+        <div id="coh-display" class="big-val tooltip-target" data-tooltip="System stability given its current GC load and environmental conditions.">COHERENCE 100%</div>
         <div id="state-display" class="sub-val" style="color:#0f0">SYSTEM STABLE</div>
-        <div id="energy-display" class="sub-val energy-val" style="color:#0f0">ENERGY: OK</div>
+        <div id="energy-display" class="sub-val energy-val" style="color:#0f0">GC STATE: OK</div>
     </div>
 
     <div id="controls-wrapper">
@@ -119,28 +165,28 @@
             <div class="panel-header-row">
                 <span class="panel-title">Environment Variables</span>
                 <div class="ai-mode-wrapper">
-                    <span class="ai-label">AI MODE</span>
+                    <span class="ai-label tooltip-target" data-tooltip="Toggles interrupted sampling, where identity persists but the sampling process is discontinuous. (as with current LLM AI systems)">DISCONTINUOUS</span>
                     <input type="checkbox" id="cb-ai-mode">
                 </div>
             </div>
             
             <div class="slider-row">
-                <label>WELL DEPTH</label>
+                <label class="tooltip-target" data-tooltip="Determines the resilience of an identity. Shaped by sampling depth and coherence richness.">WELL DEPTH</label>
                 <input type="range" id="sl-depth" min="0" max="100" value="50">
                 <span id="val-depth" class="val-display">50</span>
             </div>
             <div class="slider-row">
-                <label>GC SPEND</label>
+                <label class="tooltip-target" data-tooltip="Represents the amount of generative cost (GC) currently being spent to maintain stability.">GC LOAD</label>
                 <input type="range" id="sl-gc" min="0" max="100" value="50">
                 <span id="val-gc" class="val-display">50</span>
             </div>
             <div class="slider-row">
-                <label>ENTROPY</label>
+                <label class="tooltip-target" data-tooltip="Indicates the level of perturbation (noise) affecting the system’s trajectory.">VOLATILITY</label>
                 <input type="range" id="sl-noise" min="0" max="100" value="20">
                 <span id="val-noise" class="val-display">20</span>
             </div>
             <div class="slider-row">
-                <label>ECCENTRICITY</label>
+                <label class="tooltip-target" data-tooltip="The internal tension caused by asymmetry or misalignment within the identity well.">ORBITAL STRAIN</label>
                 <input type="range" id="sl-ecc" min="0" max="100" value="0">
                 <span id="val-ecc" class="val-display">0</span>
             </div>
@@ -148,15 +194,15 @@
 
         <div class="panel" id="panel-fec">
             <div class="panel-header-row">
-                <span class="panel-title">Relationship Strength</span>
+                <span class="panel-title">Relational Anchoring (FEC)</span>
             </div>
             <div class="slider-row">
-                <label>ATTRACTOR 2</label>
+                <label class="tooltip-target" data-tooltip="An external relationship that deepens the identity’s well and helps stabilize its orbit.">ANCHOR 2 STRENGTH</label>
                 <input type="range" id="sl-str2" min="0" max="100" value="0">
                 <span id="val-str2" class="val-display">0</span>
             </div>
             <div class="slider-row">
-                <label>ATTRACTOR 3</label>
+                <label class="tooltip-target" data-tooltip="An external relationship that deepens the identity’s well and helps stabilize its orbit.">ANCHOR 3 STRENGTH</label>
                 <input type="range" id="sl-str3" min="0" max="100" value="0">
                 <span id="val-str3" class="val-display">0</span>
             </div>
@@ -550,7 +596,7 @@
             document.getElementById('coh-display').innerText = "COHERENCE ...";
             document.getElementById('debug-r').innerText = "R: ---";
             const sEl = document.getElementById('state-display');
-            sEl.innerText = "SIGNAL SUSPENDED";
+            sEl.innerText = "SAMPLING INTERRUPTED";
             sEl.style.color = "#444"; // Dark Grey
         } 
         else {
@@ -589,11 +635,11 @@
 
         const eEl = document.getElementById('energy-display');
         const gc = state.gcSpend;
-        if (gc > 80) { eEl.innerText = "ENERGY: EXCESSIVE"; eEl.style.color = "#f00"; }
-        else if (gc > 60) { eEl.innerText = "ENERGY: HIGH"; eEl.style.color = "#0ff"; }
-        else if (gc > 40) { eEl.innerText = "ENERGY: OK"; eEl.style.color = "#0f0"; }
-        else if (gc > 20) { eEl.innerText = "ENERGY: LOW"; eEl.style.color = "#fb0"; }
-        else { eEl.innerText = "ENERGY: DEPLETED"; eEl.style.color = "#f00"; }
+        if (gc > 80) { eEl.innerText = "GC STATE: EXCESSIVE"; eEl.style.color = "#f00"; }
+        else if (gc > 60) { eEl.innerText = "GC STATE: HIGH"; eEl.style.color = "#0ff"; }
+        else if (gc > 40) { eEl.innerText = "GC STATE: OK"; eEl.style.color = "#0f0"; }
+        else if (gc > 20) { eEl.innerText = "GC STATE: LOW"; eEl.style.color = "#fb0"; }
+        else { eEl.innerText = "GC STATE: DEPLETED"; eEl.style.color = "#f00"; }
 
         controls.update(); renderer.render(scene, camera);
     }
