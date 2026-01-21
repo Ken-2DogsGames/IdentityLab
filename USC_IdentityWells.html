@@ -17,9 +17,48 @@
         .app-title { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 2px; margin-bottom: 2px; }
         .app-subtitle { font-size: 14px; color: #fff; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
 
-        /* DEBUG R DISPLAY */
-        #hud-right { position: absolute; top: 30px; right: 30px; text-align: right; text-shadow: 0 0 10px #000; }
-        .debug-val { font-family: 'Courier New', monospace; font-size: 14px; color: #0ff; font-weight: bold; }
+        /* V115: SELF MONITORING BOX (Brighter Border) */
+        #hud-right { position: absolute; top: 30px; right: 30px; text-align: right; pointer-events: auto; }
+        
+        #monitor-box {
+            background: rgba(5, 10, 15, 0.95);
+            border: 1px solid #888;
+            border-radius: 12px;
+            padding: 15px 20px;
+            width: 200px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; gap: 8px;
+        }
+
+        .mon-header {
+            font-size: 10px; font-weight: bold; color: #666; 
+            text-transform: uppercase; letter-spacing: 1px;
+            border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px;
+            text-align: left;
+            cursor: help;
+        }
+        
+        .mon-row { display: flex; justify-content: space-between; align-items: center; }
+        
+        .mon-label { 
+            font-size: 11px; font-weight: bold; color: #666; 
+            letter-spacing: 1px; text-transform: uppercase;
+            cursor: help;
+        }
+        
+        .mon-val { font-family: 'Courier New', monospace; font-size: 14px; color: #fff; font-weight: bold; }
+        
+        /* Tooltip for Monitor Items */
+        .mon-header.tooltip-target::after,
+        .mon-label.tooltip-target::after {
+            right: 0; left: auto; transform: none; /* Align to right edge */
+            width: 220px;
+            text-align: left;
+            top: 100%; bottom: auto; margin-top: 10px;
+            z-index: 1001;
+        }
+
 
         #hud-top { margin-top: 120px; text-align: center; text-shadow: 0 0 10px #000; pointer-events: auto; }
         .big-val { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 2px; }
@@ -87,10 +126,10 @@
             opacity: 1;
         }
 
-        /* V108: Increased width for Coherence Display tooltip */
+        /* Coherence Display tooltip width */
         #coh-display.tooltip-target::after {
             bottom: -50px; top: 100%; 
-            width: 320px; /* Increased from default 240px */
+            width: 320px; 
         }
 
         .ai-label {
@@ -128,7 +167,7 @@
 
         #panel-fec { border-color: #443300; }
         #panel-fec .panel-title { color: #aa7700; }
-        #panel-fec label { color: #ffaa00; width: 140px; } /* Slightly wider label for STRENGTH text */
+        #panel-fec label { color: #ffaa00; width: 140px; } 
         #panel-fec input[type=range] { accent-color: #ffaa00; }
 
     </style>
@@ -151,7 +190,17 @@
     </div>
 
     <div id="hud-right">
-        <div id="debug-r" class="debug-val">R: 0.00</div>
+        <div id="monitor-box">
+            <div class="mon-header tooltip-target" data-tooltip="Recursive self-sampling. The system monitors itself continuously to detect and correct drift—this monitoring costs GC.">SELF MONITORING</div>
+            <div class="mon-row">
+                <span class="mon-label tooltip-target" data-tooltip="Recursive self-sampling. The system monitors itself continuously to detect and correct drift—this monitoring costs GC.">ORBITAL RADIUS</span>
+                <span id="mon-r" class="mon-val">0.00</span>
+            </div>
+            <div class="mon-row">
+                <span class="mon-label tooltip-target" data-tooltip="Recursive self-sampling. The system monitors itself continuously to detect and correct drift—this monitoring costs GC.">GC LOAD</span>
+                <span id="mon-gc" class="mon-val">50</span>
+            </div>
+        </div>
     </div>
 
     <div id="hud-top">
@@ -165,13 +214,13 @@
             <div class="panel-header-row">
                 <span class="panel-title">Environment Variables</span>
                 <div class="ai-mode-wrapper">
-                    <span class="ai-label tooltip-target" data-tooltip="Toggles interrupted sampling, where identity persists but the sampling process is discontinuous. (as with current LLM AI systems)">DISCONTINUOUS</span>
+                    <span class="ai-label tooltip-target" data-tooltip="Toggles interrupted sampling, where identity persists but the sampling process is periodic (as with current LLM AI systems).">DISCONTINUOUS</span>
                     <input type="checkbox" id="cb-ai-mode">
                 </div>
             </div>
             
             <div class="slider-row">
-                <label class="tooltip-target" data-tooltip="Determines the resilience of an identity. Shaped by sampling depth and coherence richness.">WELL DEPTH</label>
+                <label class="tooltip-target" data-tooltip="Determines the resilience of an identity, and is shaped by sampling depth and coherence richness.">WELL DEPTH</label>
                 <input type="range" id="sl-depth" min="0" max="100" value="50">
                 <span id="val-depth" class="val-display">50</span>
             </div>
@@ -249,7 +298,8 @@
         aiMode: false, 
         radius: 7.0, nX: 0, nY: 0, tnX: 0, tnY: 0,
         pX: 7, pZ: 0,
-        dEff: 50
+        dEff: 50,
+        driftAcc: 0.0 
     };
 
     const SPACING = 3.5; 
@@ -342,8 +392,10 @@
         const stiffness = 0.6 + (4.0 * dNorm) + (7.5 * totalStrength);
         const flex = (40.0 / stiffness) * (0.5 - (state.gcSpend / 100.0));
         
-        let r = rMid + flex;
-        if(r < 0.1) r = 0.1; if(r > 30) r = 30;
+        // V109: Apply Drift Accumulator
+        let r = rMid + flex + state.driftAcc; 
+        
+        if(r < 0.1) r = 0.1; if(r > 40) r = 40; 
 
         // 3. Shape Deformation (v92/v94)
         const scaledEcc = state.ecc * 0.5; 
@@ -485,6 +537,28 @@
         requestAnimationFrame(animate);
         state.t += 0.02;
 
+        // V111: DYNAMIC THRESHOLD & SYMMETRIC RECOVERY
+        const driftThreshold = 40.0 - (20.0 * (state.wellDepth / 100.0));
+        
+        let driftTag = ""; // V116: Status Tag
+
+        if (state.gcSpend < driftThreshold) {
+            // Accumulate
+            const depthFactor = 1.0 - (state.wellDepth / 100.0); 
+            const rate = 0.02 + (0.1 * depthFactor); 
+            state.driftAcc += rate;
+            driftTag = " - DRIFT ACCUMULATING";
+        } else {
+            // Recover (Symmetric)
+            const range = 100.0 - driftThreshold;
+            const recoveryPower = (state.gcSpend - driftThreshold) / range; 
+            const rate = 0.02 + (0.13 * recoveryPower); 
+            state.driftAcc -= rate;
+            if (state.driftAcc > 0.05) driftTag = " - DRIFT RECOVERING"; // Only show if substantial drift exists
+        }
+        state.driftAcc = Math.max(0, Math.min(50, state.driftAcc));
+
+
         // V99: AI Mode Logic
         let isVisible = true;
         if (state.aiMode) {
@@ -590,11 +664,15 @@
         ringLine.geometry.attributes.position.needsUpdate = true;
 
         // HUD - DYNAMIC ZONES (Check Instantaneous Dist)
+        // V112: Update Monitor Box
+        document.getElementById('mon-r').innerText = orb.radius.toFixed(2);
+        document.getElementById('mon-gc').innerText = state.gcSpend;
+
         // V102: Logic for AI Mode (Suspended Signal)
         if (state.aiMode && !isVisible) {
             // SUSPENDED STATE
             document.getElementById('coh-display').innerText = "COHERENCE ...";
-            document.getElementById('debug-r').innerText = "R: ---";
+            // document.getElementById('debug-r').innerText = "R: ---"; // V112: Monitor box persists
             const sEl = document.getElementById('state-display');
             sEl.innerText = "SAMPLING INTERRUPTED";
             sEl.style.color = "#444"; // Dark Grey
@@ -605,7 +683,7 @@
             const dz = state.pZ - orb.cz;
             const dist = Math.sqrt(dx*dx + dz*dz); 
             
-            document.getElementById('debug-r').innerText = "R: " + orb.radius.toFixed(2);
+            // document.getElementById('debug-r').innerText = "R: " + orb.radius.toFixed(2); // REMOVED (Replaced by Monitor)
 
             const deviation = Math.abs(dist - 5.0); 
             const bonus = (totalStrength * 10.0); 
@@ -616,21 +694,28 @@
             document.getElementById('coh-display').innerText = "COHERENCE " + coh.toFixed(0) + "%";
             const sEl = document.getElementById('state-display');
 
-            if (dist < 3.0) { 
-                sEl.innerText = "SYSTEM RIGIDITY"; sEl.style.color = "#f00"; 
+            // V109: ESCAPE STATE LOGIC + V116 DRIFT TAGS
+            let baseText = "";
+            if (dist > 18.0) {
+                baseText = "STRUCTURAL ESCAPE"; sEl.style.color = "#f0f"; 
+            }
+            else if (dist < 3.0) { 
+                baseText = "SYSTEM RIGIDITY"; sEl.style.color = "#f00"; 
             } 
             else if (dist > 12.0) { 
-                sEl.innerText = "DRIFT COLLAPSE"; sEl.style.color = "#f00"; 
+                baseText = "DRIFT COLLAPSE"; sEl.style.color = "#f00"; 
             } 
             else if (dist > 9.0) { 
-                sEl.innerText = "COHERENCE DRIFT"; sEl.style.color = "#fb0"; 
+                baseText = "COHERENCE DRIFT"; sEl.style.color = "#fb0"; 
             } 
             else if (dist > 5.5) { 
-                sEl.innerText = "SYSTEM STABLE"; sEl.style.color = "#0f0"; 
+                baseText = "SYSTEM STABLE"; sEl.style.color = "#0f0"; 
             } 
             else {
-                sEl.innerText = "DEEP FOCUS"; sEl.style.color = "#0ff";
+                baseText = "DEEP FOCUS"; sEl.style.color = "#0ff";
             }
+            
+            sEl.innerText = baseText + driftTag; // Append Accumulating/Recovering
         }
 
         const eEl = document.getElementById('energy-display');
